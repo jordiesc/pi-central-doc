@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "docsDir": "~/repos/github/doc-system",
+  "entryFile": "INDEX.md",
+  "model": "deepseek/deepseek-flash",
+  "thinkingLevel": "low",
+  "tools": ["read", "grep", "find", "ls"],
+  "timeoutMs": 180000,
+  "maxAnswerBytes": 40000,
+  "extraPiArgs": [],
+  "publish": {
+    "enabled": true,
+    "tools": ["read", "grep", "find", "ls", "write", "edit"],
+    "dryRunTools": ["read", "grep", "find", "ls"],
+    "timeoutMs": 600000,
+    "validator": ["python3", "scripts/check-docs.py"],
+    "requireConfirmation": true
+  }
+}
