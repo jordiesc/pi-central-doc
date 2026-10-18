@@ -22,6 +22,11 @@ main session ──central_doc(question)──▶ pi subprocess (docsDir, model,
      └────────── cited answer + sources ────────┘
 ```
 
+Requirements: Pi 1.3+ and Node 22+. The hub is expected to be a git repository
+with an `INDEX.md` entry point and `AGENTS.md` conventions; `/pi-central-doc-publish`
+also uses `systems.yaml`, `glossary.md`, and `scripts/check-docs.py` when present
+(the validator is configurable, so other layouts work too).
+
 Files:
 
 | File | Purpose |
@@ -34,24 +39,45 @@ Files:
 
 ## Installation
 
-The extension lives in the Pi agent directory:
+This directory is a Pi package: `package.json` declares
+`"pi": { "extensions": ["./index.ts"] }` and the host packages are peer
+dependencies, so there is nothing to build and no runtime dependency to vendor.
 
-```
-~/.pi/agent/extensions/pi-central-doc/
-├── index.ts
-├── config.ts
-├── publish.ts
-├── pi-central-doc.example.json
-└── README.md
-```
-
-Pi loads subdirectories that contain an `index.ts`, so no build step is needed.
-Restart Pi or run `/reload`. Verify with `/pi-central-doc` (shows the effective config).
-
-To version this with a repository, keep the source there and symlink the directory:
+Install from git (pin a tag or commit):
 
 ```sh
-ln -s /path/to/repo/pi-central-doc ~/.pi/agent/extensions/pi-central-doc
+pi install git:github.com/jordiesc/pi-central-doc@v0.1.0
+```
+
+Install from a local checkout (development):
+
+```sh
+pi install ./packages/pi-central-doc
+```
+
+Try it for a single run without touching settings:
+
+```sh
+pi -e ./packages/pi-central-doc
+```
+
+From npm, once published:
+
+```sh
+pi install npm:pi-central-doc
+```
+
+`pi list` shows installed packages, `pi remove pi-central-doc` removes it, and
+`pi update --extensions` reconciles checkouts. After installing, restart Pi or run
+`/reload`, then check the effective configuration with `/pi-central-doc`.
+
+### Manual layout (no `pi install`)
+
+Pi also discovers any directory under `~/.pi/agent/extensions/` that contains an
+`index.ts`. For development, symlink the checkout instead of copying it:
+
+```sh
+ln -s /path/to/pi-central-doc ~/.pi/agent/extensions/pi-central-doc
 ```
 
 ## Configuration
