@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "docsDir": "~/repos/github/doc-system",
+  "docsDir": "~/doc-system",
   "entryFile": "INDEX.md",
   "model": "deepseek/deepseek-flash",
   "thinkingLevel": "low",

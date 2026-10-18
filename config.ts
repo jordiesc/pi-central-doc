@@ -118,10 +118,9 @@ Rules:
 - Never invent facts, paths, APIs, or identifiers. If the documentation does not answer the question, say what is missing and list the files and searches you tried.
 - Do not modify any file.
 - Keep the answer under roughly 800 words unless the question requires more.`;
-
 const DEFAULTS: CentralDocConfig = {
 	enabled: true,
-	docsDir: join(homedir(), "repos", "github", "doc-system"),
+	docsDir: join(homedir(),"jordi",  "doc-system"),
 	entryFile: "INDEX.md",
 	thinkingLevel: "low",
 	tools: ["read", "grep", "find", "ls"],
