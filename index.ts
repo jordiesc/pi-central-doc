@@ -272,7 +272,47 @@ async function writeSystemPrompt(prompt: string): Promise<{ dir: string; filePat
 	return { dir, filePath };
 }
 
+async function saveSubagentModel(configPath: string, model: string | null | undefined): Promise<void> {
+	await withFileMutationQueue(configPath, async () => {
+		let config: Record<string, unknown> = {};
+		try {
+			const parsed: unknown = JSON.parse(await fs.promises.readFile(configPath, "utf-8"));
+			if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+				throw new Error("expected a JSON object");
+			}
+			config = parsed as Record<string, unknown>;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+				throw new Error(`Cannot update ${configPath}: ${(error as Error).message}`);
+			}
+		}
+
+		const hasOverride = Object.prototype.hasOwnProperty.call(config, "subagentModel");
+		if (model === undefined && !hasOverride) return;
+		if (model === undefined) delete config.subagentModel;
+		else config.subagentModel = model;
+
+		const parentDir = path.dirname(configPath);
+		await fs.promises.mkdir(parentDir, { recursive: true });
+		const tempDir = await fs.promises.mkdtemp(path.join(parentDir, ".pi-central-doc-config-"));
+		try {
+			const tempPath = path.join(tempDir, path.basename(configPath));
+			await fs.promises.writeFile(tempPath, `${JSON.stringify(config, null, 2)}\n`, {
+				encoding: "utf-8",
+				mode: 0o600,
+			});
+			await fs.promises.rename(tempPath, configPath);
+		} finally {
+			await fs.promises.rm(tempDir, { recursive: true, force: true });
+		}
+	});
+}
+
 function resolveModel(config: CentralDocConfig, ctx: ExtensionContext): string | undefined {
+	if (config.subagentModel !== undefined) {
+		if (config.subagentModel) return config.subagentModel;
+		return ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined;
+	}
 	if (config.model) return config.model;
 	if (ctx.model) return `${ctx.model.provider}/${ctx.model.id}`;
 	return undefined;
@@ -774,6 +814,68 @@ export default function (pi: ExtensionAPI) {
 
 			const answer = formatAnswer(loaded, outcome).text;
 			ctx.ui.notify(answer.length > 4_000 ? `${answer.slice(0, 4_000)}\n…[truncated]` : answer, "info");
+		},
+	});
+
+	pi.registerCommand("pi-central-doc-model", {
+		description: "Set the persistent central_doc subagent model; no argument inherits each session's model",
+		handler: async (args, ctx) => {
+			const loaded = loadConfig(ctx.cwd, resolveFlags(pi));
+			const selection = args.trim();
+			const saveSelection = async (model: string | null | undefined, message: string) => {
+				try {
+					await saveSubagentModel(loaded.projectPath, model);
+					ctx.ui.notify(`${message}\nSaved in ${loaded.projectPath}`, "info");
+				} catch (error) {
+					ctx.ui.notify(`Could not save the subagent model: ${(error as Error).message}`, "error");
+				}
+			};
+
+			if (!selection || selection === "inherit") {
+				const model = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "Pi's default model";
+				await saveSelection(null, `central_doc will inherit each session's model (currently ${model}).`);
+				return;
+			}
+
+			if (selection === "config") {
+				await saveSelection(undefined, "Cleared the saved model choice; central_doc will use the configured model.");
+				return;
+			}
+
+			if (selection === "select") {
+				if (!ctx.hasUI) {
+					ctx.ui.notify("Model selection requires an interactive UI. Pass a provider/model-id instead.", "warning");
+					return;
+				}
+
+				const models = [...ctx.modelRegistry.getAvailable()].sort((a, b) =>
+					`${a.provider}/${a.id}`.localeCompare(`${b.provider}/${b.id}`),
+				);
+				const inheritLabel = `Inherit the session model (${ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "current default"})`;
+				const configLabel = "Use the configured model (clear saved choice)";
+				const choices = [inheritLabel, configLabel, ...models.map((model) => `${model.provider}/${model.id}`)];
+				const chosen = await ctx.ui.select("Central Doc subagent model", choices);
+				if (!chosen) return;
+				if (chosen === inheritLabel) {
+					await saveSelection(null, "central_doc will inherit each session's model.");
+				} else if (chosen === configLabel) {
+					await saveSelection(undefined, "Cleared the saved model choice; central_doc will use the configured model.");
+				} else {
+					await saveSelection(chosen, `central_doc model set to ${chosen}.`);
+				}
+				return;
+			}
+
+			const availableModel = ctx.modelRegistry.getAvailable().find((model) => `${model.provider}/${model.id}` === selection);
+			if (!availableModel) {
+				ctx.ui.notify(
+					`Model "${selection}" is not available. Use /pi-central-doc-model select to browse available models.`,
+					"error",
+				);
+				return;
+			}
+			const model = `${availableModel.provider}/${availableModel.id}`;
+			await saveSelection(model, `central_doc model set to ${model}.`);
 		},
 	});
 

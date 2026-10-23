@@ -38,6 +38,8 @@ export interface CentralDocConfig {
 	entryFile: string;
 	/** `provider/model-id` for the research session. Omitted/null = inherit the calling session's model. */
 	model?: string;
+	/** Persisted command selection. Omitted = use `model`; null = inherit the calling session's model. */
+	subagentModel?: string | null;
 	thinkingLevel: ThinkingSetting;
 	/** Built-in tools the research session may use. Default is read-only. */
 	tools: string[];
@@ -194,9 +196,21 @@ function applyFile(config: CentralDocConfig, raw: RawConfig, source: string, bas
 	}
 
 	if (raw.model !== undefined) {
-		if (raw.model === null) config.model = undefined;
-		else if (typeof raw.model === "string") config.model = raw.model.trim() || undefined;
-		else warn("`model` must be a string like \"provider/model-id\" or null (inherit caller).");
+		if (raw.model === null) {
+			config.model = undefined;
+			config.subagentModel = undefined;
+		} else if (typeof raw.model === "string") {
+			config.model = raw.model.trim() || undefined;
+			// A model in a higher-priority config source supersedes a persisted selection from a lower one.
+			config.subagentModel = undefined;
+		} else warn("`model` must be a string like \"provider/model-id\" or null (inherit caller).");
+	}
+
+	if (raw.subagentModel !== undefined) {
+		if (raw.subagentModel === null) config.subagentModel = null;
+		else if (typeof raw.subagentModel === "string" && raw.subagentModel.trim()) {
+			config.subagentModel = raw.subagentModel.trim();
+		} else warn("`subagentModel` must be a string like \"provider/model-id\" or null (inherit caller).");
 	}
 
 	if (raw.thinkingLevel !== undefined) {
@@ -326,8 +340,10 @@ function applyFlags(config: CentralDocConfig, flags: FlagOverrides, cwd: string,
 	}
 
 	if (flags.model !== undefined) {
-		if (flags.model.trim()) config.model = flags.model.trim();
-		else warn("--pi-central-doc-model requires a model.");
+		if (flags.model.trim()) {
+			config.model = flags.model.trim();
+			config.subagentModel = undefined;
+		} else warn("--pi-central-doc-model requires a model.");
 	}
 
 	if (flags.thinking !== undefined) {
@@ -379,6 +395,7 @@ export function describeConfig(loaded: LoadedConfig): string {
 		`docsDir:        ${config.docsDir}${existsSync(config.docsDir) ? "" : "  (missing!)"}`,
 		`entryFile:      ${config.entryFile}`,
 		`model:          ${config.model ?? "(inherit calling session)"}`,
+		`subagentModel:  ${config.subagentModel === undefined ? "(use model setting)" : config.subagentModel ?? "(inherit calling session)"}`,
 		`thinkingLevel:  ${config.thinkingLevel}`,
 		`tools:          ${config.tools.join(", ")}`,
 		`timeoutMs:      ${config.timeoutMs}`,

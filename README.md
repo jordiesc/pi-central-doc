@@ -115,6 +115,7 @@ the project root. `~`, `$VAR`, and `${VAR}` are expanded in `docsDir`.
 | `docsDir` | string | `~/repos/github/doc-system` | Documentation root; becomes the child's working directory |
 | `entryFile` | string | `"INDEX.md"` | Entry point named in the research instructions |
 | `model` | string \| null | inherit caller | `provider/model-id` used by the research session |
+| `subagentModel` | string \| null | unset | Persistent model selected with `/pi-central-doc-model`; overrides `model`, and `null` means inherit each calling session's model |
 | `thinkingLevel` | string | `"low"` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 | `tools` | string[] | `["read","grep","find","ls"]` | Built-in tools for the child. Keep it read-only unless you mean it |
 | `timeoutMs` | number | `180000` | Hard timeout for one research run |
@@ -190,11 +191,25 @@ accurate.
 ```
 /pi-central-doc                    # show effective config, config paths, and warnings
 /pi-central-doc <question>         # run one ad-hoc research query and show the answer
+/pi-central-doc-model              # persist inheriting the current/future session model
+/pi-central-doc-model select       # browse and persist an available model
+/pi-central-doc-model <provider/model-id>  # persist a specific available model
+/pi-central-doc-model config       # clear the saved choice and use the configured model
 
 /pi-central-doc-publish <file.md> [options]       # adapt a markdown file into the hub
 /pi-central-doc-publish --last[=<n>] [options]    # adapt the last <n> assistant messages of this session
 /pi-central-doc-publish --help
 ```
+
+### `/pi-central-doc-model`
+
+Changes which model future `central_doc` research sessions use and saves the choice
+in the project-local `.pi/pi-central-doc.json` as `subagentModel`, so it persists across
+sessions in that project. With no argument (or `inherit`), child sessions inherit the
+calling session's model. Use `select` to browse models currently available to Pi, or
+pass a `provider/model-id` directly. Use `config` to clear the saved choice and return
+to the `model` setting. This also affects publishing sessions unless `publish.model`
+is explicitly configured.
 
 ### `/pi-central-doc-publish`
 
