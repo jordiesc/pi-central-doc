@@ -961,13 +961,18 @@ export default function (pi: ExtensionAPI) {
 			const tools = parsed.dryRun ? publish.dryRunTools : publish.tools;
 
 			// The child writes files and the report is posted as a message, so do not
-			// start while the main session is still streaming.
-			await ctx.waitForIdle();
-
-			ctx.ui.setStatus("pi-central-doc", parsed.dryRun ? "publish (dry run)…" : "publishing…");
+			// start while the main session is still streaming. Show feedback while we wait,
+			// then update the status as the child reads, edits, and validates the docs.
+			const statusPrefix = parsed.dryRun ? "publish dry run" : "publishing";
+			ctx.ui.notify(`${parsed.dryRun ? "Dry run" : "Publish"} started for ${source.label}.`, "info");
 			let tmpDir: string | undefined;
 			try {
+				ctx.ui.setStatus("pi-central-doc", `${statusPrefix} · waiting for session…`);
+				await ctx.waitForIdle();
+				ctx.ui.setStatus("pi-central-doc", `${statusPrefix} · starting publisher…`);
+
 				let sourcePath: string | undefined;
+				ctx.ui.setStatus("pi-central-doc", `${statusPrefix} · preparing source…`);
 				if (Buffer.byteLength(source.content, "utf8") > INLINE_SOURCE_BYTES) {
 					const tmp = await writeTempSource(source.content, source.name ?? "source.md");
 					tmpDir = tmp.dir;
@@ -996,9 +1001,20 @@ export default function (pi: ExtensionAPI) {
 					prompt,
 					extraPiArgs: loaded.config.extraPiArgs,
 					signal: ctx.signal,
+					onProgress: (partial, _sources, steps) => {
+						const latestStep = steps.at(-1);
+						const stage = latestStep
+							? `working: ${latestStep.summary}`
+							: partial
+								? "drafting document…"
+								: "reading hub conventions…";
+						ctx.ui.setStatus("pi-central-doc", `${statusPrefix} · ${stage}`);
+					},
 				});
 
+				ctx.ui.setStatus("pi-central-doc", `${statusPrefix} · collecting changed files…`);
 				const changes = parsed.dryRun ? undefined : await gitChanges(loaded.config.docsDir);
+				if (!parsed.dryRun) ctx.ui.setStatus("pi-central-doc", `${statusPrefix} · running validator…`);
 				const validation = parsed.dryRun ? undefined : await runValidator(loaded.config.docsDir, publish.validator);
 
 				const validatorFailed = Boolean(validation && !validation.skipped && !validation.ok);
